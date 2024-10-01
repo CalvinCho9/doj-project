@@ -1,0 +1,28 @@
+---
+title: "Investigation of Forensic Crime Lab Characteristics and their Impact on Competency Testing Results"
+author: "Calvin Cho"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+format:
+  pdf:
+    margin-top: 1in
+    margin-bottom: 1in  
+    margin-left: 1in
+    margin-right: 1in
+    includes:
+      in-header: header.tex
+execute: 
+  warning: false
+  message: false
+  echo: false
+editor: visual
+prefer-html: true
+---
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+
+```
+
