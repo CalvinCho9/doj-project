@@ -19,10 +19,57 @@ prefer-html: true
 ---
 
 ```{r}
+# added needed toolkits
 library(tidyverse)
+library(tidymodels)
+library(knitr)
+library(skimr)
+library(patchwork)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(reshape2)
+library(rms)
 ```
 
 ```{r}
+fulldata <- read.csv("data/CSV/originaldatadownload.csv")
+```
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
+library(scales)
+
+# Filter out missing or invalid values for AGENCY_TYPE and BUDG_TOT_ADJ
+filtered_data <- fulldata %>%
+  filter(!is.na(AGENCY_TYPE), !is.na(BUDG_TOT_ADJ))
+
+# Replace negative values in BUDG_TOT_ADJ with NA
+filtered_data$BUDG_TOT_ADJ[filtered_data$BUDG_TOT_ADJ < 0] <- NA
+
+# Perform pairwise t-tests to compare means between agency types
+pairwise_results <- pairwise.t.test(filtered_data$BUDG_TOT_ADJ, filtered_data$AGENCY_TYPE, p.adjust.method = "BH")
+
+# Extract the p-values from pairwise comparisons
+pairwise_pvalues <- pairwise_results$p.value
+
+# Manually create significance markers for each pairwise comparison
+significance_markers <- ifelse(pairwise_pvalues < 0.05, "*", "ns")
+
+# Set the maximum limit for the y-axis to $25,000,000
+y_max_limit <- 25000000
+
+# Create the boxplot
+p <- ggplot(filtered_data, aes(x = as.factor(AGENCY_TYPE), y = BUDG_TOT_ADJ)) +
+  geom_boxplot(fill = "lightblue", color = "darkblue", outlier.shape = NA) +  # Remove outlier points
+  stat_boxplot(geom = "errorbar", width = 0.25, color = "darkblue") +  # Draw whiskers as lines
+  labs(title = "Adjusted Total Budget by Agency Type with Significance Markers",
+       x = "Agency Type",
+       y = "Adjusted Total Budget (BUDG_TOT_ADJ)") +
+  scale_x_discrete(labels = c("1" = "City", "2" = "County", "3" = "State", "4" = "Federal")) +
+  scale_y_continuous(labels = dollar_format(prefix = "$", suffix = ""), limits = c(0, y_max_limit)) +  # Limit y-values to $25,000,000
+  theme_minimal()
+p
 
 ```
-
