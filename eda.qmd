@@ -17,7 +17,6 @@ execute:
 editor: visual
 prefer-html: true
 ---
-
 ```{r}
 # added needed toolkits
 library(tidyverse)
@@ -35,41 +34,219 @@ library(rms)
 ```{r}
 fulldata <- read.csv("data/CSV/originaldatadownload.csv")
 ```
+
+```{r}
+filtered_data <- fulldata %>%
+  filter(!is.na(AGENCY_TYPE), !is.na(BUDG_TOT_ADJ))
+filtered_data$BUDG_TOT_ADJ[filtered_data$BUDG_TOT_ADJ < 0] <- NA
+filtered_data$AGENCY_TYPE <- factor(filtered_data$AGENCY_TYPE, levels = c(4, 3, 2, 1))
+
+pairwise_results <- pairwise.t.test(filtered_data$BUDG_TOT_ADJ, filtered_data$AGENCY_TYPE, p.adjust.method = "BH")
+pairwise_pvalues <- pairwise_results$p.value
+significance_markers <- ifelse(pairwise_pvalues < 0.05, "*", "ns")
+y_max_limit <- 25000000
+avg_budget_data <- data.frame(
+  AGENCY_TYPE = factor(c("Federal", "State", "County", "City"), levels = c("Federal", "State", "County", "City")),
+  avg_budget_per_agency = c(4187456, 4503006, 5842889, 3534317)
+)
+```
+
+
+```{r}
+# Load necessary libraries
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+# Ensure all request columns have the same data type (convert to numeric)
+filtered_data_req <- filtered_data %>%
+  mutate(across(starts_with("REQ"), as.numeric))  # Convert all REQ columns to numeric
+
+# Filter for only the specific request types you're interested in
+filtered_data_req <- filtered_data_req %>%
+  select(AGENCY_TYPE, REQ_FIRE_NEW, REQ_LTPR_NEW, REQ_DNA_NEW, REQ_TOX_NEW)
+
+# Reshape the data into long format for easier plotting
+long_data <- filtered_data_req %>%
+  pivot_longer(cols = starts_with("REQ"), 
+               names_to = "Request_Type", 
+               values_to = "Count") %>%
+  filter(!is.na(Count) & Count > 0)  # Filter out NA and non-positive values
+
+# Group by AGENCY_TYPE and Request_Type, then calculate the total count for each
+grouped_data <- long_data %>%
+  group_by(AGENCY_TYPE, Request_Type) %>%
+  summarise(Total_Requests = sum(Count)) %>%
+  ungroup()
+
+# Calculate the percentage of each request type within each agency
+grouped_data <- grouped_data %>%
+  group_by(AGENCY_TYPE) %>%
+  mutate(Percentage = Total_Requests / sum(Total_Requests) * 100) %>%
+  ungroup()
+
+# Update AGENCY_TYPE labels according to the image
+grouped_data$AGENCY_TYPE <- factor(grouped_data$AGENCY_TYPE, 
+                                   levels = c(1, 2, 3, 4), 
+                                   labels = c("City", "County", "State", "Federal"))
+
+# Update Request_Type labels for the legend
+grouped_data$Request_Type <- recode(grouped_data$Request_Type, 
+                                    REQ_DNA_NEW = "DNA Requests", 
+                                    REQ_FIRE_NEW = "Firearm Requests", 
+                                    REQ_LTPR_NEW = "Latent Print Requests", 
+                                    REQ_TOX_NEW = "Toxicology Requests")
+
+# Create the stacked bar plot
+ggplot(grouped_data, aes(x = AGENCY_TYPE, y = Percentage, fill = Request_Type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "Distribution of Request Types by Agency",
+       x = "Agency Type", 
+       y = "Percentage of Requests") +
+  theme_minimal() +
+  scale_fill_brewer(palette = "PuBu") +
+  theme(legend.title = element_blank()) +  # Remove legend title
+  coord_flip()
+```
+
 ```{r}
 # Load necessary libraries
 library(ggplot2)
 library(dplyr)
-library(scales)
+library(tidyr)
 
-# Filter out missing or invalid values for AGENCY_TYPE and BUDG_TOT_ADJ
-filtered_data <- fulldata %>%
-  filter(!is.na(AGENCY_TYPE), !is.na(BUDG_TOT_ADJ))
+# Step 1: Filter valid data for AGENCY_TYPE and OVERSIGHT
+filtered_data_oversight <- filtered_data %>%
+  filter(AGENCY_TYPE %in% c(1, 2, 3, 4),  # Valid agency types
+         OVERSIGHT %in% c(1, 2, 3, 4))  # Assuming OVERSIGHT has valid values (1 to 4)
 
-# Replace negative values in BUDG_TOT_ADJ with NA
-filtered_data$BUDG_TOT_ADJ[filtered_data$BUDG_TOT_ADJ < 0] <- NA
+# Step 2: Create labels for the agency types and oversight
+filtered_data_oversight$AGENCY_TYPE <- factor(filtered_data_oversight$AGENCY_TYPE, 
+                                              levels = c(1,2,3,4),  # Set order: Federal, State, County, City
+                                              labels = c("City","County","State","Federal"))
 
-# Perform pairwise t-tests to compare means between agency types
-pairwise_results <- pairwise.t.test(filtered_data$BUDG_TOT_ADJ, filtered_data$AGENCY_TYPE, p.adjust.method = "BH")
+filtered_data_oversight$OVERSIGHT <- factor(filtered_data_oversight$OVERSIGHT, 
+                                            levels = c(1, 2, 3, 4),  # Assuming 4 types of oversight
+                                            labels = c("Law Enforcement", "Public Health Agency", 
+                                                       "Government Attorney", "Other"))
 
-# Extract the p-values from pairwise comparisons
-pairwise_pvalues <- pairwise_results$p.value
+# Step 3: Summarize the data for stacked bar plot
+oversight_data <- filtered_data_oversight %>%
+  group_by(AGENCY_TYPE, OVERSIGHT) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = count / sum(count) * 100)
 
-# Manually create significance markers for each pairwise comparison
-significance_markers <- ifelse(pairwise_pvalues < 0.05, "*", "ns")
+# Step 4: Create the stacked bar plot with reversed y-axis
+ggplot(oversight_data, aes(x = AGENCY_TYPE, y = percentage, fill = OVERSIGHT)) +
+  geom_bar(stat = "identity", position = "fill") +
+  labs(title = "Agency Type by Oversight",
+       x = "Agency Type", y = "Percentage", fill = "Oversight") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_minimal() +
+    scale_fill_brewer(palette = "PuBu") +
 
-# Set the maximum limit for the y-axis to $25,000,000
-y_max_limit <- 25000000
+  coord_flip()
+```
+```{r}
+# Load necessary libraries
+library(ggplot2)
+library(dplyr)
 
-# Create the boxplot
-p <- ggplot(filtered_data, aes(x = as.factor(AGENCY_TYPE), y = BUDG_TOT_ADJ)) +
-  geom_boxplot(fill = "lightblue", color = "darkblue", outlier.shape = NA) +  # Remove outlier points
-  stat_boxplot(geom = "errorbar", width = 0.25, color = "darkblue") +  # Draw whiskers as lines
-  labs(title = "Adjusted Total Budget by Agency Type with Significance Markers",
-       x = "Agency Type",
-       y = "Adjusted Total Budget (BUDG_TOT_ADJ)") +
-  scale_x_discrete(labels = c("1" = "City", "2" = "County", "3" = "State", "4" = "Federal")) +
-  scale_y_continuous(labels = dollar_format(prefix = "$", suffix = ""), limits = c(0, y_max_limit)) +  # Limit y-values to $25,000,000
-  theme_minimal()
-p
+# Step 1: Filter out values other than 1 (Yes) and 2 (No)
+filtered_data_structures <- filtered_data %>%
+  filter(ETHICS %in% c(1, 2),
+         TRAINING %in% c(1, 2),
+         PERF_VER %in% c(1, 2),
+         LIMS %in% c(1, 2),
+         ACC_REQR %in% c(1, 2),
+         RESEARCH %in% c(1, 2),
+         PROF_TEST_RAND %in% c(1, 2))
+
+# Step 2: Create the 'structural_score' variable
+filtered_data_structures <- filtered_data_structures %>%
+  mutate(structural_score = rowSums(select(., ETHICS, TRAINING, PERF_VER, LIMS, ACC_REQR, RESEARCH, PROF_TEST_RAND) == 1))
+
+# Step 3: Create labels for the agency types
+filtered_data_structures$AGENCY_TYPE <- factor(filtered_data_structures$AGENCY_TYPE, 
+                                               levels = c(4, 3, 2, 1),
+                                               labels = c("Federal", "State", "County", "City"))
+
+# Step 4: Summarize the data for stacked bar plot
+score_data <- filtered_data_structures %>%
+  group_by(AGENCY_TYPE, structural_score) %>%
+  summarise(count = n()) %>%
+  mutate(percentage = count / sum(count) * 100)
+
+# Step 5: Create the stacked bar plot
+ggplot(score_data, aes(x = AGENCY_TYPE, y = percentage, fill = as.factor(structural_score))) +
+  geom_bar(stat = "identity", position = "fill") +
+  labs(title = "Performance Structures by Agency Type",
+       x = "Agency Type", y = "Percentage", fill = "Structural Score") +
+  scale_y_continuous(labels = scales::percent_format()) +
+  theme_minimal() +
+      scale_fill_brewer(palette = "PuBu") 
+
 
 ```
+
+
+```{r}
+filtered_data_budget <- fulldata %>%
+  filter(!is.na(AGENCY_TYPE), !is.na(BUDG_TOT_ADJ), !is.na(EMP_FT_TOT_2019), !is.na(EMP_PT_TOT_2019)) %>%
+  mutate(
+    BUDG_TOT_ADJ = as.numeric(BUDG_TOT_ADJ),  # Convert to numeric
+    EMP_FT_TOT_2019 = as.numeric(EMP_FT_TOT_2019),  # Convert to numeric
+    EMP_PT_TOT_2019 = as.numeric(EMP_PT_TOT_2019)  # Convert to numeric
+  ) %>%
+  filter(!is.na(BUDG_TOT_ADJ) & !is.na(EMP_FT_TOT_2019) & !is.na(EMP_PT_TOT_2019))  # Remove rows with NA after conversion
+
+# Set "Federal" (AGENCY_TYPE = 4) as the reference category
+filtered_data_budget$AGENCY_TYPE <- factor(filtered_data_budget$AGENCY_TYPE, 
+                                    levels = c(4, 3, 2, 1),  # Federal is set as the reference category
+                                    labels = c("Federal", "State", "County", "City"))
+
+# Calculate average budget per full-time employee and part-time employee
+filtered_data_budget <- filtered_data_budget %>%
+  mutate(
+    avg_budget_per_ft_employee = BUDG_TOT_ADJ / EMP_FT_TOT_2019,
+    avg_budget_per_pt_employee = ifelse(EMP_PT_TOT_2019 > 0, BUDG_TOT_ADJ / EMP_PT_TOT_2019, NA)  # Avoid division by zero
+  )
+
+# Group by AGENCY_TYPE and calculate the average budget per full-time and part-time employee
+avg_budget_data <- filtered_data_budget %>%
+  group_by(AGENCY_TYPE) %>%
+  summarise(
+    avg_budget_per_ft_employee = mean(avg_budget_per_ft_employee, na.rm = TRUE),
+    avg_budget_per_pt_employee = mean(avg_budget_per_pt_employee, na.rm = TRUE)
+  )
+
+# Scale the budget values relative to "Federal" (set to 1)
+avg_budget_data <- avg_budget_data %>%
+  mutate(
+    avg_budget_per_ft_employee = avg_budget_per_ft_employee / avg_budget_data$avg_budget_per_ft_employee[1],  # Scale full-time to Federal
+    avg_budget_per_pt_employee = avg_budget_per_pt_employee / avg_budget_data$avg_budget_per_pt_employee[1]   # Scale part-time to Federal
+  )
+
+# Create a tidy format for plotting
+avg_budget_tidy <- avg_budget_data %>%
+  pivot_longer(cols = c(avg_budget_per_ft_employee, avg_budget_per_pt_employee), 
+               names_to = "Employee_Type", 
+               values_to = "Avg_Budget") %>%
+  mutate(Employee_Type = ifelse(Employee_Type == "avg_budget_per_ft_employee", "Full-Time", "Part-Time"))
+
+# Plot the side-by-side bar chart with Federal as the baseline
+ggplot(avg_budget_tidy, aes(x = AGENCY_TYPE, y = Avg_Budget, fill = Employee_Type)) +
+  geom_bar(stat = "identity", position = position_dodge()) +
+  labs(title = "Relative Average Budget Per Employee by Agency Type (Federal as Baseline)",
+       x = "Agency Type",
+       y = "Relative Average Budget Per Employee (Federal = 1)",
+       fill = "Employee Type") +
+  theme_minimal() +   scale_fill_brewer(palette = "PuBu")
+```
+
+```
+
+
+
+
+
