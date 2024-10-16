@@ -237,9 +237,9 @@ avg_budget_tidy <- avg_budget_data %>%
 # Plot the side-by-side bar chart with Federal as the baseline
 ggplot(avg_budget_tidy, aes(x = AGENCY_TYPE, y = Avg_Budget, fill = Employee_Type)) +
   geom_bar(stat = "identity", position = position_dodge()) +
-  labs(title = "Relative Average Budget Per Employee by Agency Type (Federal as Baseline)",
+  labs(title = "Relative Budget Per Employee (Federal as Baseline)",
        x = "Agency Type",
-       y = "Relative Average Budget Per Employee (Federal = 1)",
+       y = "Relative Average Budget Per Employee",
        fill = "Employee Type") +
   theme_minimal() +   scale_fill_brewer(palette = "PuBu")
 ```
