@@ -1,4 +1,7 @@
 # doj-project
+Conducted as part of the 2024 United States Department of Justice Student Research Expo Program. 
+Link to presentation: https://bjs.ojp.gov/events/bjs-student-research-expo
+
 Investigation of Forensic Crime Lab Characteristics and their Impact on Competency Testing Results
 
 The Census of Publicly Funded Forensic Crime Laboratories, 2020 (ICPSR 38901) provides data on forensic crime laboratories from four jurisdictions: federal, state, county, and municipal. In a 2023 study, Connor Brooks utilized this dataset and shocacased a trend where a lab’s competency testing results differed significantly depending on what jurisdiction it was under: labs under federal jurisdiction were rated on average 93.9% for competency testing while state, county, and municipal labs were rated at 91.3%, 85.5%, and 77.4% respectively.
